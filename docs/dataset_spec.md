@@ -21,20 +21,28 @@ set is fixed and reproducible.
    power analysis (see [`experiment_plan.md`](experiment_plan.md)); a small,
    fully hand-verified set is acceptable for v1.
 
-## Candidate sources — [⚠ Needs verification]
+## Dataset roles (decided)
 
-The following are commonly used referring-expression / grounding datasets. Each
-must be checked for **current** license and terms before use; do not assume.
+The benchmark uses a **contamination-free custom held-out set as PRIMARY evidence**
+for the main grounding claim (RQ1/RQ2), with public benchmarks as **SECONDARY**
+and **explicitly labeled contamination-suspect** wherever reported. Rationale:
+RefCOCO/+/g and Visual Genome are standard grounding-pretraining corpora for the
+Tier-A models, so public scores may reflect memorization (see
+[`research_questions.md`](research_questions.md), contamination threat).
 
-| Candidate | Task fit | License note | To verify |
-|-----------|----------|--------------|-----------|
-| RefCOCO / RefCOCO+ / RefCOCOg | Referring expressions + boxes | Built on COCO images | Current license terms & attribution |
-| Visual Genome (region descriptions) | Region-level descriptions | — | License, box quality |
-| Flickr30k Entities | Phrase grounding | — | Redistribution terms |
-| Hand-curated micro-set (ours) | Full control, small | We assign license | Annotation cost (see annotation protocol) |
+| Source | Role | Task fit | License (verified) | Contamination |
+|--------|------|----------|--------------------|---------------|
+| **Custom held-out set (ours)** | **PRIMARY** | Basic/attribute/relational/multi-object + negative probes + difficulty labels | We assign; freshly annotated | **Contamination-free by construction** (see `heldout_spec.md`) |
+| RefCOCO | Secondary | Basic single-object REC | Annotations on COCO images (COCO terms) **[⚠ verify current]** | **Suspect** |
+| RefCOCO+ | Secondary | Attribute (no location words) | as RefCOCO **[⚠ verify]** | **Suspect** |
+| RefCOCOg (UMD split) | Secondary | Relational / long expressions | as RefCOCO **[⚠ verify]** | **Suspect** |
+| Visual Genome | Secondary / detection subset | Relations + attributes | **CC BY 4.0** [Verified] | **Suspect** |
+| Flickr30k Entities | Secondary (multi-object) | Phrase grounding | **Non-commercial research/education; images = Flickr ToU** [Verified] → **reference-only, do not redistribute images** | High |
 
-> We adopt **one** primary source for v1 + optionally a small hand-annotated
-> control set. Decision is recorded here once made, with citation.
+> **Do not commit source images** (COCO/Flickr) to the repo; ship image IDs +
+> download scripts + derived annotations. Visual Genome (CC BY 4.0) is the only
+> public source whose annotations may be redistributed with attribution.
+> **Do not invent** sizes, contamination rates, or licenses; unknowns are TBD.
 
 ## Data layout (repo convention)
 
@@ -61,17 +69,28 @@ data/
   "image_source_id": "original dataset id",
   "referring_expression": "the pig on the left",
   "prompt_complexity_tier": "L1|L2|L3|L4",
+  "referent_present": true,
   "gt_boxes": [{"x": 0, "y": 0, "w": 0, "h": 0}],
   "box_format": "xywh_abs_pixels",
+  "is_multi_target": false,
+  "difficulty": {"size_bin": "small|medium|large", "occluded": false, "clutter": "low|med|high"},
   "categories": ["pig"],
+  "dataset_role": "heldout|public_secondary",
+  "contamination_suspect": false,
   "license": "source license id",
   "provenance": "dataset@version"
 }
 ```
 
+- **`referent_present: false`** marks a **negative probe** (no GT box; correct
+  model behavior is `NOT_PRESENT`) — see hallucination metric in
+  [`metrics_spec.md`](metrics_spec.md) and [`heldout_spec.md`](heldout_spec.md).
+- **`contamination_suspect`** is `true` for all public-benchmark samples and is
+  carried into every reported table.
 - **Coordinate convention** is fixed here (`xywh`, absolute pixels, origin
-  top-left) and every model adapter must map to it. Ambiguity in coordinate
-  conventions is a top source of silent IoU bugs.
+  top-left) and every model adapter must map to it (Qwen `xyxy` abs-px; Cosmos
+  normalized 0–1000 → convert). Ambiguity in coordinate conventions is a top
+  source of silent IoU bugs; conversions are unit-tested (see `model_matrix.md`).
 
 ## Splits policy
 
@@ -86,8 +105,19 @@ data/
   committed `data/MANIFEST.*`.
 - Any preprocessing (resize, format) is scripted and logged; raw is preserved.
 
+## Held-out set (primary) — specification pointer
+
+The eligibility criteria, negative-probe definition, difficulty labels, and
+annotation requirements for the primary held-out set are specified in
+[`heldout_spec.md`](heldout_spec.md). It is built and IAA-verified per
+[`annotation_protocol.md`](annotation_protocol.md) before freeze.
+
 ## Open questions to resolve before freeze
 
-- [ ] Final primary dataset chosen + license confirmed (**[⚠ Needs verification]**).
-- [ ] Target N from power analysis.
-- [ ] Whether a redistributable sample can be committed to the repo.
+- [ ] Held-out target N from **per-tier** power analysis (working figure
+      ~200–500 images, **TBD** pending analysis — not fixed).
+- [ ] RefCOCO/COCO current license terms confirmed for redistribution of derived
+      files (**[⚠ verify]**).
+- [ ] Public-source versions pinned (RefCOCOg = UMD split) + manifests hashed.
+- [ ] Whether a redistributable sample can be committed (VG CC BY 4.0 yes; COCO/
+      Flickr images no — IDs+scripts only).

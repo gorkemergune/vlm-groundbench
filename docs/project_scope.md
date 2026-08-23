@@ -2,19 +2,30 @@
 
 ## One-line summary
 
-A reproducible, model-agnostic benchmark for evaluating vision-language models
-(VLMs) on **natural-language visual grounding** — localizing objects in images
-from free-text descriptions — with rigorous metrics, frozen protocols, and full
-raw-output provenance.
+A reproducible benchmark for evaluating vision-language models (VLMs) on
+**natural-language visual grounding** — localizing objects in images from
+free-text descriptions — framed as a **native-vs-prompted study**: it separates
+**Tier-A native/documented grounding** (Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner)
+from **Tier-C prompt-induced** coordinate output (Llama 3.2 11B/90B Vision,
+Nemotron 3 Nano Omni). Rigorous metrics, frozen protocols, full raw-output
+provenance. The **primary evidence** for the main grounding claim is a
+**contamination-free held-out set**; public benchmarks are reported as
+contamination-suspect.
 
 ## In scope
 
 - **Task:** Referring-expression grounding / open-vocabulary object localization,
   output as bounding boxes. (Segmentation masks are out of scope for v1.)
-- **Evaluation** of the models listed in [`model_matrix.md`](model_matrix.md)
-  under a **single frozen protocol**.
-- **Controlled studies** of prompt complexity (RQ3) and model scale (RQ4).
-- **Efficiency profiling:** latency and token/cost accounting (RQ5).
+- **Evaluation** of the models in [`model_matrix.md`](model_matrix.md) under a
+  frozen protocol with **two prompt regimes** (native for Tier A, prompted for
+  all) — see [`prompt_protocol.md`](prompt_protocol.md).
+- **A contamination-free held-out set** (primary evidence) plus contamination-
+  suspect public benchmarks — see [`dataset_spec.md`](dataset_spec.md) and
+  [`heldout_spec.md`](heldout_spec.md).
+- **Controlled studies** of prompt complexity (RQ3, all five) and model scale
+  (RQ4, **Llama 11B vs 90B only**).
+- **Efficiency profiling:** latency and token/cost accounting on **two frontiers**
+  (local vs NIM-API) (RQ5).
 - **Reproducibility infrastructure:** config-driven runs, environment pinning,
   raw-output archival, deterministic metric recomputation.
 
@@ -48,8 +59,13 @@ raw-output provenance.
 
 - We do **not** claim to rank "the best VLM" in general — only grounding under
   this protocol.
-- We do **not** invent or infer model capabilities; unverified capabilities are
-  flagged and excluded from capability-dependent claims.
+- We do **not** put Tier-A native output and Tier-C prompt-induced output on one
+  grounding leaderboard; a prompt-induced coordinate is **never** described as
+  native grounding (CLAUDE.md Rule #9).
+- We do **not** treat public-benchmark scores as clean capability evidence; they
+  are contamination-suspect, and the held-out set is primary.
+- We do **not** invent or infer model capabilities, dataset sizes, contamination
+  rates, or licenses; unknowns are marked TBD / needing verification.
 - We do **not** cherry-pick qualitative examples (Rule #10); qualitative figures
   are sampled by a documented, seeded procedure.
 
@@ -63,8 +79,11 @@ The human **Research Director** owns protocol freeze and integrity sign-off.
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
-| Model grounding capability unverified | RQ2/RQ4 invalid | Verify per model; exclude unverified from those claims |
-| Dataset licensing unclear | Cannot publish | Resolve licensing in `dataset_spec.md` before any download |
-| Prompt/format bias favors some models | Unfair comparison | Report per-prompt-tier; document parsing fairness |
-| API cost/latency non-comparable across providers | RQ5 muddy | Normalize + document measurement conditions |
-| Small dataset → low statistical power | Weak claims | Power analysis before freeze; report CIs |
+| **Output-contract asymmetry** (A native bbox vs C prompt-induced) | Apples-to-oranges leaderboard | Native-vs-prompted framing; tier labels on every number; parse-success reported separately |
+| **Benchmark contamination** (RefCOCO/VG in Tier-A pretraining) | RQ1/RQ2 inflated | Held-out set as primary evidence; public labeled contamination-suspect; report the gap |
+| Coordinate-format mismatch (Qwen abs-px vs Cosmos 0–1000) | Silent IoU bugs | Per-model denorm in adapter, unit-tested before any reported run |
+| Prompt/format bias favors some models | Unfair comparison | Two documented regimes; per-tier reporting; robust parser |
+| API cost/latency non-comparable across providers | RQ5 muddy | **Two frontiers** (local vs NIM-API); document measurement conditions |
+| API non-determinism / version drift (NIM) | Non-reproducible | Pin endpoint version; capture returned model version per call; [⚠ verify T=0] |
+| Small held-out set → low power | Weak Tier-A claim | Per-tier power analysis before freeze; report CIs |
+| Dataset licensing unclear | Cannot publish | Resolve in `dataset_spec.md`; Flickr30k reference-only; ship IDs+scripts not images |
