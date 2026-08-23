@@ -31,6 +31,21 @@ grounding claim (RQ1/RQ2). Public datasets (RefCOCO/+/g, Visual Genome, Flickr30
 Entities) are **SECONDARY** and **labeled contamination-suspect** wherever
 reported (they are standard grounding-pretraining corpora for Tier-A models).
 
+## Terminology: two distinct meanings of "tier"
+
+The word **tier** is used in two unrelated senses in this benchmark. Always
+qualify it as **"capability tier"** or **"complexity tier"** whenever ambiguity is
+possible.
+
+- **Capability / grounding tier** (how a model produces coordinates):
+  - **A** = native/documented grounding (documented bbox/point output format).
+  - **B** = visual localization/reasoning **without** a documented bbox output.
+  - **C** = prompt-induced coordinate localization (boxes exist only because the
+    prompt asked; not a documented capability).
+- **Prompt-complexity tier** (how hard the referring expression is):
+  - **L1–L4** (bare category → attribute → spatial → relational/compositional;
+    rubric in [`prompt_protocol.md`](prompt_protocol.md)).
+
 ## Pipeline (model-agnostic)
 
 ```

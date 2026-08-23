@@ -138,6 +138,12 @@ localization. This is a **first-class threat to RQ1 and RQ2**, not a footnote:
 | RQ3 | H3.1      | IoU, F1 per tier (within-model Δ) | E2      | all 5 (Δ)    | prompt freeze |
 | RQ4 | H4.1      | Acc@IoU, IoU vs params          | E1b (Llama)| Llama pair   | Tier-C prompt-induced |
 | RQ5 | H5.1      | Acc@IoU vs latency vs cost      | E1a/E1b instrumented | within-frontier | local vs API, provider cost data |
+| RQ1 | —         | Acc@IoU per difficulty stratum  | **E3**     | Tier A (acc) + all 5 (behavior) | small-box IoU instability (report center-distance) |
+| RQ1/RQ2 | —     | `hall_absent`, `hall_wrongbox`  | **E4**     | all 5        | needs held-out negative probes |
+
+> **E3** (difficulty-stratified grounding) and **E4** (hallucination / negative
+> probes) provide **secondary characterization/evidence** for RQ1 (and RQ2 for
+> E4); they do not alter the RQ definitions or their primary hypotheses.
 
 > **mAP is not a primary metric for any RQ.** It is reported only on a genuine
 > detection subset and only where a model emits usable scores (see
