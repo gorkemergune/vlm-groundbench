@@ -3,13 +3,19 @@
 ## One-line summary
 
 A reproducible benchmark for evaluating vision-language models (VLMs) on
-**natural-language visual grounding** — localizing objects in images from
-free-text descriptions — framed as a **native-vs-prompted study**: it separates
-**Tier-A native/documented grounding** (Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner)
-from **Tier-C prompt-induced** coordinate output (Llama 3.2 11B/90B Vision,
-Nemotron 3 Nano Omni). Rigorous metrics, frozen protocols, full raw-output
-provenance. The **primary evidence** for the main grounding claim is a
-**contamination-free held-out set**; public benchmarks are reported as
+**natural-language visual localization** — locating objects in images from
+free-text descriptions — framed as a **native-vs-prompted study** across **three
+capability classes** distinguished by native primitive:
+- **A-bbox — native bounding box:** Qwen2.5-VL-7B → bbox metrics.
+- **A-point — native point:** Cosmos3-Nano-Reasoner (`point_2d`, 0–1000) → point
+  metrics. **Cosmos is not a native-bbox model.**
+- **C — prompt-induced coordinates:** Llama 3.2 11B/90B Vision, Nemotron 3 Nano
+  Omni.
+
+BBox and point predictions are scored by **separate, non-interchangeable** metric
+families (a point is never scored with IoU). Rigorous metrics, frozen protocols,
+full raw-output provenance. The **primary evidence** for the main localization
+claim is a **contamination-free held-out set**; public benchmarks are reported as
 contamination-suspect.
 
 ## In scope
@@ -59,9 +65,11 @@ contamination-suspect.
 
 - We do **not** claim to rank "the best VLM" in general — only grounding under
   this protocol.
-- We do **not** put Tier-A native output and Tier-C prompt-induced output on one
-  grounding leaderboard; a prompt-induced coordinate is **never** described as
-  native grounding (CLAUDE.md Rule #9).
+- We do **not** put native and prompt-induced output on one leaderboard; a
+  prompt-induced coordinate is **never** described as native (CLAUDE.md Rule #9).
+- We do **not** describe Cosmos as native bbox (its documented native primitive is
+  the point), and we do **not** score bbox and point predictions on the same
+  metric axis.
 - We do **not** treat public-benchmark scores as clean capability evidence; they
   are contamination-suspect, and the held-out set is primary.
 - We do **not** invent or infer model capabilities, dataset sizes, contamination
@@ -79,7 +87,7 @@ The human **Research Director** owns protocol freeze and integrity sign-off.
 
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
-| **Output-contract asymmetry** (A native bbox vs C prompt-induced) | Apples-to-oranges leaderboard | Native-vs-prompted framing; tier labels on every number; parse-success reported separately |
+| **Output-contract asymmetry** (native bbox vs native point vs prompt-induced) | Apples-to-oranges leaderboard | Three-class framing; **two non-interchangeable metric families** (bbox vs point); condition labels on every number; parse-success separate |
 | **Benchmark contamination** (RefCOCO/VG in Tier-A pretraining) | RQ1/RQ2 inflated | Held-out set as primary evidence; public labeled contamination-suspect; report the gap |
 | Coordinate-format mismatch (Qwen abs-px vs Cosmos 0–1000) | Silent IoU bugs | Per-model denorm in adapter, unit-tested before any reported run |
 | Prompt/format bias favors some models | Unfair comparison | Two documented regimes; per-tier reporting; robust parser |

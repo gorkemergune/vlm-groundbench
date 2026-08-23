@@ -24,14 +24,17 @@ conclusions until results exist.**
   **contaminated** into VLM pretraining; (c) inconsistent metrics and
   irreproducible setups.
 - Contributions:
-  1. A **native-vs-prompted** grounding protocol that separates Tier-A
-     native/documented grounding (Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner) from
-     Tier-C prompt-induced localization (Llama 3.2 11B/90B, Nemotron 3 Nano Omni),
-     frozen with full raw-output provenance.
+  1. A **native-vs-prompted** localization protocol across **three capability
+     classes distinguished by native primitive** — **A-bbox** (Qwen2.5-VL-7B,
+     native bounding box), **A-point** (Cosmos3-Nano-Reasoner, native `point_2d`;
+     **not** native bbox), and **C** prompt-induced (Llama 3.2 11B/90B, Nemotron 3
+     Nano Omni) — frozen with full raw-output provenance.
   2. A **contamination-free custom held-out set** as primary evidence, with public
      benchmarks reported as **contamination-suspect**.
-  3. **Acc@IoU** as the primary localization metric, with parse-success reported
-     separately (mAP restricted to a detection subset, never primary).
+  3. **Two non-interchangeable spatial metric families** — **Acc@IoU** (bbox) and
+     **point-in-GT-box accuracy** (point); a point is never scored with IoU.
+     Parse-success reported separately; mAP restricted to a detection subset,
+     never primary.
   4. Controlled studies of **prompt complexity/robustness** (RQ3), **scale**
      (Llama 11B vs 90B, RQ4), and **accuracy/latency/cost** on **separate local
      and NIM-API frontiers** (RQ5).
@@ -46,39 +49,45 @@ conclusions until results exist.**
   + contamination-free primary evidence + protocol freeze + reproducibility).
 
 ## 3. Benchmark Design
-- Task definition; **capability tiers A/B/C** (`model_matrix.md`).
+- Task definition; **capability classes A-bbox / A-point / C** (`model_matrix.md`).
 - Datasets & annotations: **held-out primary** (`heldout_spec.md`) + public
   **contamination-suspect** secondary (`dataset_spec.md`), with IAA
   (`annotation_protocol.md`).
 - Frozen protocol (`benchmark_protocol.md`); **two prompt regimes** (native /
   prompted) and complexity tiers (`prompt_protocol.md`).
-- Metrics with exact definitions — **Acc@IoU primary**, parse-success first-class,
+- Metrics with exact definitions — **two spatial families** (Acc@IoU for bbox;
+  point-in-GT-box accuracy for point, never merged), parse-success first-class,
   mAP detection-subset only (`metrics_spec.md`).
 - Reproducibility infrastructure (configs, manifests, env pinning, deterministic
   recomputation).
 
 ## 4. Experimental Setup
-- Models + verified capabilities and **tier (A/C)** (`model_matrix.md`); a
-  prompt-induced coordinate is never reported as native grounding.
-- Experiments **E1a** (Tier-A native), **E1b** (all-model prompted), **E2**
-  (prompt robustness), **E3** (difficulty), **E4** (hallucination) —
-  (`experiment_plan.md`).
+- Models + verified capabilities and **class (A-bbox / A-point / C)**
+  (`model_matrix.md`); a prompt-induced coordinate is never reported as native, and
+  Cosmos is never reported as native bbox.
+- Experiments **E1a** (native — Qwen bbox + **Cosmos-native-point**), **E1b**
+  (all-model prompted bbox, incl. **Cosmos-prompted-bbox**), **E2** (prompt
+  robustness), **E3** (difficulty), **E4** (hallucination) — (`experiment_plan.md`).
 - Hardware/API conditions; **local vs NIM-API** separation; seeds; decoding.
 
 ## 5. Results *(all numbers are placeholders until runs complete — do not invent)*
-- **5.1 RQ1 — Tier-A native grounding accuracy.** Acc@0.5/0.75 + IoU on the
-  **held-out set (primary)**; public results shown **labeled
-  contamination-suspect**; held-out-vs-public gap. `[TABLE: TBD] [FIG: TBD]`
-- **5.2 RQ2 — Native vs prompt-induced.** E1a (native, Tier A) vs E1b (prompted);
-  Acc@IoU with parse-success reported alongside. `[TABLE: TBD]`
+- **5.1 RQ1 — Native localization accuracy (per primitive).** Qwen native **bbox**
+  (Acc@0.5/0.75 + IoU) and **Cosmos-native-point** (point-in-GT-box accuracy),
+  reported in **separate panels, not merged**, on the **held-out set (primary)**;
+  public labeled **contamination-suspect**; held-out-vs-public gap. `[TABLE: TBD] [FIG: TBD]`
+- **5.2 RQ2 — Native vs prompt-induced.** (i) bbox contrast: Qwen native bbox vs
+  prompt-induced boxes (Cosmos-prompted-bbox, Llama×2, Nemotron), Acc@IoU +
+  parse-success; (ii) within-Cosmos: native-point vs prompted-bbox (explicitly
+  non-metric-identical). `[TABLE: TBD]`
 - **5.3 RQ3 — Prompt complexity & robustness.** Within-model Δ across L1–L4 +
   paraphrase variance, all five. `[FIG: TBD]`
 - **5.4 RQ4 — Scale (Llama 11B vs 90B only).** Prompt-induced localization vs
   params; other size differences descriptive only. `[TABLE: TBD]`
 - **5.5 RQ5 — Accuracy/latency/cost.** **Two Pareto frontiers** (local vs
   NIM-API); cost N/A where providers don't expose it. `[FIG: TBD ×2]`
-- **5.6 Difficulty & hallucination.** E3 per-stratum accuracy; E4 `hall_absent` /
-  `hall_wrongbox` on negative probes. `[TABLE/FIG: TBD]`
+- **5.6 Difficulty & hallucination.** E3 per-stratum accuracy (bbox Acc@IoU;
+  point-in-GT-box acc / center-distance); E4 `hall_absent`,
+  `hall_wrongbox`/`hall_wrongpoint` on negative probes. `[TABLE/FIG: TBD]`
 
 ## 6. Error Analysis
 - Taxonomy + stratified findings (`error_analysis.md`); seeded qualitative gallery.
@@ -88,11 +97,13 @@ conclusions until results exist.**
 - Practical guidance (which model when).
 
 ## 8. Limitations
-- Held-out set size/scope; residual contamination risk in public results; Tier-C
-  numbers are prompt-induced (not native grounding); scale claim limited to one
-  Llama pair; cross-provider (local vs NIM-API) latency/cost non-comparability;
-  single-task focus; unresolved TBDs (API determinism, pricing, Cosmos bbox key).
-  State honestly (Rule #10).
+- Held-out set size/scope; residual contamination risk in public results; C-class
+  numbers are prompt-induced (not native); **Cosmos native evidence is point-based
+  (`point_2d`) — no documented native bbox, so Cosmos bbox results are
+  prompt-induced and point vs bbox metrics are not directly comparable**; scale
+  claim limited to one Llama pair; cross-provider (local vs NIM-API) latency/cost
+  non-comparability; single-task focus; unresolved TBDs (NIM T=0 determinism,
+  official pricing). State honestly (Rule #10).
 
 ## 9. Reproducibility Statement
 - Repo, configs, raw outputs, env, one-command metric recomputation.

@@ -15,30 +15,46 @@
 
 ## Experiment catalog
 
-### E1a — Tier-A native-regime grounding (RQ1, RQ2, RQ5)
-- **Vary:** model ∈ **Tier A** {Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner}.
-- **Regime:** **native** (each model's documented grounding interface; adapter
-  converts native coords → canonical `xywh` abs-px).
+### E1a — Native-regime localization (RQ1, RQ2, RQ5)
+Two native **conditions**, each scored in **its own metric family** (never merged):
+- **Qwen-native-bbox** — Qwen2.5-VL-7B, native `bbox_2d` → **BBox family**
+  (Acc@IoU, IoU).
+- **Cosmos-native-point** — Cosmos3-Nano-Reasoner, native `point_2d` (0–1000) →
+  **Point family** (point-in-GT-box accuracy, normalized point error). **Not IoU;
+  not a box.**
+- **Regime:** **native** (each condition's documented interface; adapter converts
+  to the family canonical schema).
 - **Hold constant:** frozen inputs (held-out primary + public), decoding, seed,
   preprocessing.
-- **Collect:** raw outputs → **Acc@0.5/0.75**, IoU dist., P/R/F1, parse-success,
-  hallucination (on negative probes), latency, tokens/cost.
-- **Analyses:** RQ1 Tier-A native accuracy (held-out primary; public labeled
-  contamination-suspect); feeds RQ2 (the "native" arm) and RQ5 local/API frontier.
+- **Collect:** per-family accuracy, parse-success, hallucination (negative probes),
+  latency, tokens/cost.
+- **Analyses:** RQ1 native accuracy **reported per primitive/family, not combined
+  into one ranking** (held-out primary; public labeled contamination-suspect);
+  feeds RQ2 (native arm) and RQ5 local/API frontier.
 
-### E1b — Prompted-regime grounding, all five models (RQ2, RQ4, RQ5)
-- **Vary:** model ∈ all five.
-- **Regime:** **prompted** (single shared prompt; Tier-C boxes labeled
-  prompt-induced).
+### E1b — Prompted-regime bbox localization, all five models (RQ2, RQ4, RQ5)
+- **Vary:** model ∈ all five; every condition emits a **prompt-induced bounding
+  box** → **BBox family**. Includes **Cosmos-prompted-bbox** (labeled
+  prompt-induced; **never** native bbox).
+- **Regime:** **prompted** (single shared bbox prompt).
 - **Hold constant:** as E1a.
-- **Collect:** same metric set, every box tier-labeled; parse-success reported
-  separately from Acc@IoU.
+- **Collect:** Acc@IoU, IoU, parse-success (reported separately), hallucination.
+  Every box labeled with its condition + prompt-induced flag.
 - **Analyses:**
-  - **RQ2:** E1a (native, Tier A) **vs** E1b (prompted) — native-vs-prompted
-    contrast; primary metric **Acc@IoU** (not mAP).
-  - **RQ4:** E1b restricted to **Llama 11B vs 90B** (the only valid scale pair;
-    Tier-C, prompt-induced localization).
+  - **RQ2 (bbox contrast, H2.1):** **Qwen native bbox** (from E1a) **vs**
+    prompt-induced boxes in E1b (Cosmos-prompted-bbox, Llama×2, Nemotron) —
+    primary metric **Acc@IoU** (not mAP).
+  - **RQ2 (within-Cosmos, H2.2):** Cosmos-native-point (E1a, point metric) vs
+    Cosmos-prompted-bbox (E1b, bbox metric) — reported as native-vs-prompted
+    within one model, **explicitly non-metric-identical**.
+  - **RQ4:** E1b restricted to **Llama 11B vs 90B** (only valid scale pair;
+    prompt-induced bbox localization).
   - **RQ5:** latency/cost, **frontier-segregated** (local vs NIM-API).
+
+> **No new top-level experiment ID is introduced.** The two Cosmos conditions map
+> onto existing experiments: **Cosmos-native-point ⊂ E1a**, **Cosmos-prompted-bbox
+> ⊂ E1b**. They are named conditions, tracked via the `condition` config field, so
+> the study design is preserved rather than expanded.
 
 ### E2 — Prompt-complexity & robustness sweep (RQ3)
 - **Vary:** prompt complexity tier L1→L4 + frozen paraphrases (`prompt_protocol.md`),
@@ -47,20 +63,24 @@
 - **Collect:** per-tier IoU/F1; within-model deltas across tiers; paraphrase
   variance.
 - **Report:** within-model prompt sensitivity (comparable across all five as a
-  *delta*); absolute per-tier level comparable only within Tier A. Distinct from
-  raw capability (Rule #9).
+  *delta*); absolute per-tier level comparable only **within a shared metric
+  family** (bbox vs point never merged). Distinct from raw capability (Rule #9).
 
 ### E3 — Difficulty stratification (RQ1 depth; held-out only)
 - **Vary:** difficulty stratum (object-size bin, occlusion flag, scene clutter —
   labels from `heldout_spec.md`).
-- **Models:** Tier A (accuracy) + all five (behavioral).
-- **Collect:** Acc@IoU per stratum; degradation slope; small-box center-distance
-  (since IoU is unstable for small boxes).
+- **Conditions:** native conditions for accuracy (Qwen-native-bbox → Acc@IoU per
+  stratum; **Cosmos-native-point → point-in-GT-box acc / center-distance per
+  stratum**) + all five (behavioral).
+- **Collect:** per-family accuracy per stratum; degradation slope. Point
+  localization is size-robust where box IoU is not — report both accordingly.
 
 ### E4 — Hallucination via negative probes (RQ1/RQ2 secondary; all five)
 - **Vary:** referent presence (present vs **absent** negative probe).
-- **Collect:** `hall_absent`, `hall_wrongbox`, correct-decline rate, parse-success
-  (definitions in `metrics_spec.md`).
+- **Collect:** `hall_absent` (box **or** point returned instead of `NOT_PRESENT`),
+  `hall_wrongbox` (bbox conditions) / `hall_wrongpoint` (Cosmos-native-point),
+  correct-decline rate, parse-success (definitions in `metrics_spec.md`), reported
+  per family.
 - **Note:** requires the held-out negative probes; not computable on public REC
   data (no absent-referent cases).
 
@@ -77,12 +97,14 @@ experiment_id: E1a
 protocol_version: 1.0.0
 model:
   id: qwen2.5-vl-7b
-  tier: A                     # A (native) | C (prompt-induced)
+  class: A-bbox               # A-bbox | A-point | C
   revision: "<pinned>"        # [⚠ verify]
   access: "<api|local>"       # [⚠ verify]
+condition: Qwen-native-bbox   # Qwen-native-bbox | Cosmos-native-point | Cosmos-prompted-bbox | <model>-prompted-bbox
+metric_family: bbox           # bbox | point
 prompt:
   registry_version: 1.0.0
-  regime: native              # native (Tier-A) | prompted (all)
+  regime: native              # native (native conditions) | prompted (all, bbox)
   prompt_id: grounding.native.qwen.v1
 data:
   split_manifest: data/splits/test_v1.json
@@ -105,9 +127,11 @@ output:
   shared samples; correct for multiple comparisons (e.g., Holm–Bonferroni).
 - **Prompt effect (RQ3):** within-model repeated-measures analysis across tiers.
 - **Effect sizes** reported alongside p-values (not p-values alone).
-- **Power analysis — per tier, not pooled:** the RQ1/RQ2 accuracy claim rests on
-  the **two Tier-A models on the held-out set**, so power is computed for that
-  comparison specifically. Working target N for the held-out set is **TBD from the
+- **Power analysis — per metric family, not pooled:** the RQ1/RQ2 accuracy claims
+  rest on the **native conditions on the held-out set**, computed **within each
+  metric family** — the bbox contrast (Qwen native bbox vs prompt-induced boxes)
+  and the point condition (Cosmos-native-point) — never as a single Qwen-vs-Cosmos
+  cross-family comparison. Working target N for the held-out set is **TBD from the
   power analysis** (order-of-magnitude planning figure ~200–500 images, pending
   that analysis — not a fixed decision). If power is insufficient, claims are
   scoped down honestly rather than overstated.

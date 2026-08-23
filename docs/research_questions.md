@@ -17,49 +17,61 @@ Legend for evidence tags used throughout the docs:
 
 ---
 
-## RQ1 — Tier-A native grounding accuracy
+## RQ1 — Native localization accuracy (by primitive)
 
 > How accurately can multimodal VLMs perform natural-language visual grounding?
 
-- **Scope:** headline accuracy claims are made for **Tier-A native-grounding
-  models** (Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner; see
-  [`model_matrix.md`](model_matrix.md)). Tier-C models are reported alongside but
-  their coordinates are labeled **prompt-induced**, never native grounding
-  (CLAUDE.md Rule #9).
+- **Scope:** headline accuracy claims are made for the **native/documented
+  localization** conditions, reported **per spatial primitive on its own metric
+  family** (see [`model_matrix.md`](model_matrix.md), [`metrics_spec.md`](metrics_spec.md)):
+  - **Native bounding box** — Qwen2.5-VL-7B → **BBox family** (Acc@IoU).
+  - **Native point** — Cosmos3-Nano-Reasoner (`point_2d`) → **Point family**
+    (point-in-GT-box accuracy). **Cosmos is not a native-bbox model.**
+  These two are **not combined into one ranking** (different primitive, different
+  metric family, non-equivalent). Prompt-induced conditions are reported alongside
+  and labeled *prompt-induced*, never native.
 - **Primary evidence:** the **contamination-free custom held-out set** (see
-  [`dataset_spec.md`](dataset_spec.md) and [`heldout_spec.md`](heldout_spec.md)).
-  Public-benchmark results (RefCOCO/+/g, VG, Flickr30k) are reported **explicitly
-  labeled contamination-suspect** and are secondary.
-- **H1.0 (null):** Tier-A models achieve statistically indistinguishable mean IoU
-  / Acc@0.5 on the held-out set.
-- **H1.1 (alt):** At least one Tier-A model differs significantly.
-- **Primary metrics:** **Acc@IoU (Acc@0.5, Acc@0.75)** and mean/median IoU
-  (see [`metrics_spec.md`](metrics_spec.md)). **mAP is not the primary metric**
-  (no comparable confidence scores; task-metric mismatch on single-target REC).
-- **Secondary:** Precision/Recall/F1, hallucination rate, parse-success rate.
-- **Experiment:** E1a (Tier-A native regime) in [`experiment_plan.md`](experiment_plan.md).
-- **Confounds to control:** contamination (→ held-out primary), coordinate
-  denormalization per model, prompt regime, image resolution, decoding params.
+  [`dataset_spec.md`](dataset_spec.md), [`heldout_spec.md`](heldout_spec.md)).
+  Public benchmarks (RefCOCO/+/g, VG, Flickr30k) are reported **labeled
+  contamination-suspect** and are secondary.
+- **H1.0 (null):** within a metric family, native conditions are statistically
+  indistinguishable on the held-out set.
+- **H1.1 (alt):** at least one native condition differs significantly (assessed
+  **within** a family, not across families).
+- **Primary metrics:** **Acc@IoU (0.5, 0.75)** for bbox; **point-in-GT-box
+  accuracy** for point. **mAP is not primary.**
+- **Secondary:** IoU / normalized point error, P/R/F1, hallucination, parse-success.
+- **Experiment:** E1a (native regime — Qwen native bbox + **Cosmos-native-point**).
+- **Confounds:** contamination (→ held-out primary), per-condition coordinate
+  conversion, prompt regime, resolution, decoding.
 
-## RQ2 — Native/documented grounding vs prompt-induced localization
+## RQ2 — Native/documented localization vs prompt-induced localization
 
-> Does native/documented grounding specialization lead to better localization
-> performance than prompt-induced coordinate output?
+> Does native/documented localization lead to better performance than
+> prompt-induced coordinate output?
 
-- **H2.1:** Tier-A models (native/documented bbox output) achieve higher
-  **Acc@IoU** than Tier-C models (prompt-induced boxes) on identical inputs.
-- **This is a native-vs-prompted contrast, not a flat leaderboard.** A Tier-C
-  score conflates localization ability with prompt/format compliance; it is
-  reported *with* its parse-success rate and never relabeled as native grounding.
-- **Dependency:** the A/C classification in [`model_matrix.md`](model_matrix.md)
-  (verified per model).
-- **Primary metric:** **Acc@IoU.** Secondary: IoU, hallucination rate,
-  parse-success rate. **mAP is NOT used as the primary metric for RQ2.**
-- **Experiment:** E1a (A, native regime) vs E1b (all models, shared prompted
-  regime), analyzed by tier.
-- **Threat to validity:** contamination may inflate Tier-A on public data
-  (→ held-out primary); parse failures must be separated from localization
-  failures (see [`metrics_spec.md`](metrics_spec.md)).
+- **Two contrasts, kept separate (never merged across primitive):**
+  - **H2.1 (bbox family):** Qwen **native bbox** achieves higher **Acc@IoU** than
+    **prompt-induced boxes** (Cosmos-prompted-bbox, Llama 11B/90B, Nemotron) on
+    identical inputs.
+  - **H2.2 (within-Cosmos):** **Cosmos-native-point** localizes its target better
+    (point-in-GT-box accuracy) than **Cosmos-prompted-bbox** does (Acc@IoU) —
+    reported as a within-model native-vs-prompted comparison, with the explicit
+    caveat that point and bbox metrics are **not directly equivalent** (the
+    comparison is *native primitive vs prompted primitive within one model*, not a
+    metric-identical test).
+- **Not a flat leaderboard.** A prompt-induced score conflates localization with
+  format compliance; it is reported *with* its parse-success rate and never
+  relabeled native.
+- **Dependency:** the A-bbox / A-point / C classification in
+  [`model_matrix.md`](model_matrix.md).
+- **Primary metric:** **Acc@IoU** (bbox contrast); **point-in-GT-box accuracy**
+  (point side). **mAP is NOT primary for RQ2.**
+- **Experiment:** E1a (native conditions) vs E1b (all models, shared prompted-bbox
+  regime — includes **Cosmos-prompted-bbox**).
+- **Threat to validity:** contamination may inflate native conditions on public
+  data (→ held-out primary); parse failures separated from localization failures;
+  point vs bbox never presented as the same axis.
 
 ## RQ3 — Effect of prompt complexity
 
@@ -73,10 +85,11 @@ Legend for evidence tags used throughout the docs:
 - **Metrics:** IoU, F1 per complexity tier; within-model deltas.
 - **Experiment:** E2 (prompt-complexity sweep).
 - **Cross-model comparability:** RQ3 is evaluated for **all five models**. Because
-  each model is its own control across tiers, the *within-model* delta (prompt
-  sensitivity) is comparable across all five; the *absolute* per-tier level is
-  comparable only within Tier A. Tier-C per-tier accuracy is labeled
-  prompt-induced.
+  each model is its own control across complexity tiers, the *within-model* delta
+  (prompt sensitivity) is comparable across all five; the *absolute* per-tier level
+  is comparable only **within a shared metric family** (bbox Acc@IoU among the bbox
+  conditions; point-in-GT-box acc for Cosmos-native-point separately). Prompt-
+  induced per-tier accuracy is labeled prompt-induced.
 - **Integrity note:** Prompts are frozen before results are collected
   (CLAUDE.md Rule #2). This RQ measures *prompt sensitivity*, and per CLAUDE.md
   Rule #9 must be reported as distinct from raw model capability.
@@ -133,12 +146,12 @@ localization. This is a **first-class threat to RQ1 and RQ2**, not a footnote:
 
 | RQ  | Hypothesis | Primary metric(s)              | Experiment | Valid across | Key confound |
 |-----|-----------|---------------------------------|------------|--------------|--------------|
-| RQ1 | H1.1      | **Acc@IoU**, IoU (P/R/F1 sec.) | E1a        | Tier A       | contamination, coord denorm |
-| RQ2 | H2.1      | **Acc@IoU** (+ parse-success)  | E1a vs E1b | A-vs-C       | parse-vs-loc failure, contamination |
+| RQ1 | H1.1      | **Acc@IoU** (bbox: Qwen); **point-in-GT-box acc** (point: Cosmos) — per family, not merged | E1a | native bbox / native point (separately) | contamination, coord conversion, primitive non-equivalence |
+| RQ2 | H2.1 (bbox), H2.2 (within-Cosmos) | **Acc@IoU** (bbox contrast) + parse-success; **point-in-GT-box acc** (point side) | E1a vs E1b | Qwen-native-bbox vs prompt-induced bbox; Cosmos native-point vs prompted-bbox | parse-vs-loc failure, contamination, point↔bbox non-equivalence |
 | RQ3 | H3.1      | IoU, F1 per tier (within-model Δ) | E2      | all 5 (Δ)    | prompt freeze |
 | RQ4 | H4.1      | Acc@IoU, IoU vs params          | E1b (Llama)| Llama pair   | Tier-C prompt-induced |
 | RQ5 | H5.1      | Acc@IoU vs latency vs cost      | E1a/E1b instrumented | within-frontier | local vs API, provider cost data |
-| RQ1 | —         | Acc@IoU per difficulty stratum  | **E3**     | Tier A (acc) + all 5 (behavior) | small-box IoU instability (report center-distance) |
+| RQ1 | —         | per stratum: Acc@IoU (Qwen bbox); point-in-GT-box acc / center-dist (Cosmos point) | **E3** | native (acc, per family) + all 5 (behavior) | small-box IoU instability (report center-distance) |
 | RQ1/RQ2 | —     | `hall_absent`, `hall_wrongbox`  | **E4**     | all 5        | needs held-out negative probes |
 
 > **E3** (difficulty-stratified grounding) and **E4** (hallucination / negative

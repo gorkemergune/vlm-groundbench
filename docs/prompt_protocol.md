@@ -21,24 +21,30 @@
 
 ## Two prompt regimes (core design decision)
 
-The benchmark is a **native-vs-prompted** study, so it uses two regimes:
+The benchmark is a **native-vs-prompted** study, so it uses two regimes. Note that
+the two native models have **different documented primitives** (see
+[`model_matrix.md`](model_matrix.md)):
 
-- **Native regime (Tier-A only — Qwen2.5-VL, Cosmos3-Nano-Reasoner).** Each native
-  model is prompted in its **vendor-documented grounding convention** and emits its
-  **native** coordinate format (Qwen `bbox_2d` abs-px; Cosmos box/`point_2d`
-  normalized 0–1000). The **adapter** converts to the canonical `xywh` abs-px
-  schema; the *prompt* never asks for a foreign format. These runs produce the
-  RQ1 native-accuracy numbers.
-- **Prompted regime (all five models).** A single shared, plain-language prompt
-  asks every model for a bounding box in one stated format. For Tier-C models this
-  is the *only* regime available, and any resulting box is labeled
-  **prompt-induced** (never "native grounding"). These runs produce the RQ2
-  A-vs-C contrast and the RQ4 Llama scale comparison.
+- **Native regime (native conditions only).** Each native model is prompted in its
+  **vendor-documented convention** and emits its **native primitive**:
+  - **Qwen native bbox** — elicits `bbox_2d` (abs-px) → **BBox** metric family.
+  - **Cosmos-native-point** — elicits `point_2d` (normalized 0–1000) → **Point**
+    metric family. Cosmos is **not** asked for a native bbox (no documented bbox
+    schema exists; asking would be prompt-induced, not native).
+  The **adapter** converts to the family's canonical schema; the *prompt* never
+  asks for a foreign format. These runs produce the RQ1 native-accuracy numbers.
+- **Prompted regime (all five models — bounding box).** A single shared,
+  plain-language prompt asks every model for a **bounding box** in one stated
+  format. This includes **Cosmos-prompted-bbox**, which is **prompt-induced and
+  never called native bbox**. For the three C-models this is the only available
+  regime. These runs produce the RQ2 bbox contrast and the RQ4 Llama scale
+  comparison. (Qwen also runs here, giving an all-five prompted-bbox surface.)
 
-> **Fairness statement (must appear in the paper):** the native regime gives
-> Tier-A models their documented interface; the prompted regime is identical for
-> all five. Both are reported. Neither regime is used to relabel a prompt-induced
-> coordinate as native grounding.
+> **Fairness statement (must appear in the paper):** the native regime gives each
+> native model its **documented primitive** (Qwen→box, Cosmos→point); the prompted
+> regime is one identical bbox prompt for all five. Both are reported. A
+> prompt-induced coordinate is never relabeled as native. **Point and bbox results
+> are never presented as the same metric axis.**
 
 ## Complexity tiers (the RQ3 variable)
 
@@ -65,10 +71,11 @@ Tiers are the **independent variable** for RQ3 and a GT annotation field.
    If the object is not present, respond exactly: NOT_PRESENT."
 ```
 
-**Native regime (Tier-A only):** the vendor-documented grounding instruction for
-each of Qwen2.5-VL and Cosmos3-Nano-Reasoner, eliciting the model's native output
-(`bbox_2d` / `point_2d`-style JSON). The exact per-model wording is recorded in
-the registry and cross-referenced in [`model_matrix.md`](model_matrix.md).
+**Native regime (native conditions only):** the vendor-documented instruction for
+each native condition — **Qwen** eliciting a **`bbox_2d`** box, **Cosmos-native-
+point** eliciting a **`point_2d`** point (normalized 0–1000). Cosmos is not asked
+for a native box. The exact per-condition wording is recorded in the registry and
+cross-referenced in [`model_matrix.md`](model_matrix.md).
 
 - In the **prompted** regime, `{OUTPUT_FORMAT_SPEC}` is a single shared spec for
   all models; parse failures are recorded, not silently scored (see

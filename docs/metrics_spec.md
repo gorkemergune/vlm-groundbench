@@ -6,20 +6,40 @@
 
 ## Conventions
 
-- **Canonical box format:** `xywh`, absolute pixels, origin top-left (see
-  `dataset_spec.md`). Every model's raw output is converted to this by the
-  evaluation adapter (per-model rules in [`model_matrix.md`](model_matrix.md)),
-  **unit-tested against known boxes** before any reported run.
-- **Prediction:** one or more predicted boxes per (image, expression). A
-  confidence/score is used **only if the model natively provides one**
-  (**[⚠ verify per model]**; none of the five is known to emit calibrated,
-  comparable scores).
-- **Matching:** a prediction matches a GT box if `IoU ≥ τ`.
-- **Output tier label:** every predicted box carries its regime — **native**
-  (Tier-A) or **prompt-induced** (Tier-C) — and this label is preserved in all
-  reporting. A prompt-induced box is never described as native grounding.
+- **Two canonical schemas, one per spatial family:**
+  - **BBox family** → `xywh`, absolute pixels, origin top-left.
+  - **Point family** → `(x, y)`, absolute pixels, origin top-left.
+  Every prediction is converted to the schema of **its** family by the evaluation
+  adapter (per-condition rules in [`model_matrix.md`](model_matrix.md)),
+  **unit-tested** before any reported run.
+- **Prediction:** one or more predicted boxes **or** points per (image,
+  expression), depending on the condition. A confidence/score is used **only if
+  the model natively provides one** (**[⚠ verify per model]**; none of the five is
+  known to emit calibrated, comparable scores).
+- **Output labels preserved in all reporting:** every prediction carries (a) its
+  **primitive** (bbox | point), (b) its **condition** (e.g. `Qwen-native-bbox`,
+  `Cosmos-native-point`, `Cosmos-prompted-bbox`, `Llama-prompted-bbox`), and (c)
+  whether it is **native** or **prompt-induced**. A prompt-induced coordinate is
+  never described as native. **Cosmos is never labeled native bbox.**
 
-## Core metrics
+## Two spatial evaluation families (do NOT merge)
+
+Bounding-box predictions and point predictions measure different things and are
+scored by **different, non-interchangeable** metric families. **A point prediction
+is never scored with IoU**, and box vs point numbers are **not** reported as
+directly equivalent.
+
+- **Family A — BBox localization** (Qwen native bbox; all prompt-induced boxes,
+  incl. Cosmos-prompted-bbox): IoU, **Acc@IoU (primary)**, parse-success,
+  duplicate/matching rules.
+- **Family B — Point localization** (Cosmos-native-point): **point-in-GT-box
+  accuracy (primary)**, normalized point error / center-distance, parse-success.
+
+Cross-family comparison (e.g. Cosmos-native-point vs Qwen native bbox) is
+presented as **two separate results**, explicitly labeled non-equivalent — never a
+single combined ranking.
+
+## Family A — BBox localization metrics
 
 ### IoU (Intersection over Union)
 For axis-aligned boxes `A, B`:
@@ -29,8 +49,8 @@ IoU(A, B) = area(A ∩ B) / area(A ∪ B),   with area(A ∪ B) = area(A)+area(B
 - Reported as **mean IoU** and as the distribution (median, IQR) — not the mean
   alone, to expose skew. IoU = 0 for disjoint boxes.
 
-### Acc@IoU — PRIMARY metric (RQ1, RQ2, RQ4)
-The **primary** accuracy metric for single-target referring-expression grounding.
+### Acc@IoU — PRIMARY metric for the BBox family (RQ1 bbox, RQ2 bbox, RQ4)
+The **primary** accuracy metric for single-target bounding-box grounding.
 For a set of `N` single-target samples and threshold τ:
 ```
 Acc@τ = (1/N) · Σ_i  1[ IoU(pred_i*, gt_i) ≥ τ ]
@@ -58,9 +78,9 @@ multi-target grounding (Flickr30k Entities, VG) and hallucination accounting:
 ```
 parse_success_rate = (# samples whose raw output yields ≥1 valid box) / (total samples)
 ```
-- Reported **per model, per regime, per tier**. It is never folded into IoU or
-  Acc@IoU. For Tier-C models this separates "cannot format a box" from "cannot
-  localize" — essential to the RQ2 native-vs-prompted claim.
+- Reported **per model, per condition** (bbox family). It is never folded into IoU
+  or Acc@IoU. For prompt-induced conditions this separates "cannot format a box"
+  from "cannot localize" — essential to the RQ2 native-vs-prompted claim.
 - A "valid box" = parseable to canonical `xywh` with `w>0, h>0` inside image
   bounds (after clamping policy below).
 
@@ -74,6 +94,43 @@ parse_success_rate = (# samples whose raw output yields ≥1 valid box) / (total
   to precision/recall and would be misleading). Absence of scores → N/A, reported
   as such.
 
+## Family B — Point localization metrics
+
+Used for **Cosmos-native-point** predictions (documented `point_2d`, converted to
+`(x,y)` abs-px). **IoU is never computed on a point.**
+
+### Point-in-GT-box accuracy — PRIMARY metric for the Point family (RQ1 point, RQ2 point)
+For `N` single-target samples with a predicted point `p_i = (x,y)` and the GT box
+`gt_i`:
+```
+PointAcc = (1/N) · Σ_i  1[ p_i ∈ gt_i ]
+```
+`p_i ∈ gt_i` iff the point lies inside (or on) the GT bounding box. Parse-failed
+samples handled with the same dual basis (charged vs excluded) as Acc@IoU.
+
+### Normalized point error / center-distance (secondary)
+For samples where the point is expected near the referent center, report the
+Euclidean point-to-GT-center distance normalized by a documented scale:
+```
+NPE_i = || p_i − center(gt_i) ||_2  /  s_i
+```
+where `s_i` is a fixed normalization scale — **choice TBD at freeze** (candidates:
+image diagonal, or √(GT box area)); the chosen `s_i` is documented and applied
+uniformly. Report median NPE + distribution. Also report raw center-distance in
+pixels for the small-object stratum (see `heldout_spec.md`, E3), since point
+localization is size-robust in a way IoU is not.
+
+### Parse-success rate (Point family)
+```
+point_parse_success = (# samples whose raw output yields ≥1 valid point) / (total samples)
+```
+A "valid point" = parseable to `(x,y)` inside image bounds. Reported separately;
+never folded into PointAcc. **Point parse-success and BBox parse-success are
+reported under their own families, not pooled.**
+
+> **Non-equivalence rule:** PointAcc and Acc@IoU are **not** directly comparable
+> and are never averaged, ranked together, or presented as the same axis.
+
 ### Hallucination rate
 Requires **negative probes** (referent genuinely absent), which public REC data
 lacks — supplied by the held-out set ([`heldout_spec.md`](heldout_spec.md)). Two
@@ -83,13 +140,22 @@ components, reported **separately** (not summed into one opaque number):
   ```
   hall_absent = (# negative-probe samples with a returned box) / (# negative-probe samples)
   ```
-- **Gross-wrong-box (present referent):** on a present referent the model asserts
-  presence and returns a box with `IoU = 0` against all GT.
-  ```
-  hall_wrongbox = (# present samples with asserted box, IoU=0 vs all GT) / (# present samples with an asserted box)
-  ```
+- **Gross-wrong (present referent):**
+  - *BBox family:* on a present referent the model asserts presence and returns a
+    box with `IoU = 0` against all GT.
+    ```
+    hall_wrongbox = (# present samples with asserted box, IoU=0 vs all GT) / (# present samples with an asserted box)
+    ```
+  - *Point family (Cosmos-native-point):* the model returns a point that lies
+    **outside all** GT boxes.
+    ```
+    hall_wrongpoint = (# present samples with asserted point ∉ any GT box) / (# present samples with an asserted point)
+    ```
+- `hall_absent` applies to both families (a returned box **or** point instead of
+  `NOT_PRESENT`). Box and point hallucination components are reported under their
+  own families, not pooled.
 - Correctly returning `NOT_PRESENT` on an absent referent is **not** a
-  hallucination (it is a correct decline). Parse failures are excluded from both
+  hallucination (it is a correct decline). Parse failures are excluded from all
   numerators and reported via parse-success instead.
 
 ## Efficiency metrics (RQ5)
@@ -107,8 +173,10 @@ components, reported **separately** (not summed into one opaque number):
 - **Primary basis** for the main grounding claim (RQ1/RQ2) is the
   **contamination-free held-out set**; public-benchmark numbers are reported
   **labeled contamination-suspect**.
-- Every accuracy figure carries its **tier label** (native vs prompt-induced) and
-  its **parse-failure basis** (charged vs excluded).
+- Every accuracy figure carries its **primitive** (bbox | point), its **condition
+  label** (native vs prompt-induced), and its **parse-failure basis** (charged vs
+  excluded). BBox (Acc@IoU) and Point (PointAcc) results are reported in separate
+  columns/panels — never merged into one score.
 - Report per-model and per-prompt-tier breakdowns (RQ3), the Llama-pair scale
   comparison (RQ4), and **two** Pareto views — local vs NIM-API (RQ5).
 - **Uncertainty:** report 95% confidence intervals (bootstrap over samples) for
@@ -152,9 +220,12 @@ components, reported **separately** (not summed into one opaque number):
 | Duplicate predictions (IoU ≥ 0.95) | deduplicated before matching |
 | Multi-target GT | Hungarian one-to-one, IoU ≥ τ; unmatched pred→FP, GT→FN |
 | Parse failure | flagged; in parse-success + both Acc bases (never silent 0) |
-| Model returns normalized/native coords | adapter converts to canonical `xywh` abs-px before scoring |
+| Model returns normalized/native coords | adapter converts to the **family's** canonical schema before scoring |
 | Box out of image bounds | clamp to image; if area collapses to 0 → parse failure |
-| Empty prediction on present object | FN (localization miss) |
+| **Point prediction (Cosmos-native-point)** | scored with **Family B** (PointAcc / NPE); **never IoU**; never converted to a box |
+| **Point out of image bounds** | clamp; if still invalid → point parse failure |
+| **Box expected but a point returned (or vice versa)** | scored only in the family matching the **condition**; cross-family coercion is prohibited |
+| Empty prediction on present object | FN / miss (in the relevant family) |
 | `NOT_PRESENT` on absent object (negative probe) | correct decline (not FP, not hallucination) |
 | `NOT_PRESENT` on present object | FN + counts toward miss, not hallucination |
 

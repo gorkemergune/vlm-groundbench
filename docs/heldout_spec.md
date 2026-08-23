@@ -14,6 +14,14 @@ memorization, not localization. This set is constructed to be **contamination-fr
 so it can carry the headline RQ1/RQ2 claim, with public benchmarks reported
 alongside as contamination-suspect.
 
+## 0. Ground-truth representation (applies throughout)
+
+**GT is always a bounding box.** This set annotates object/referent **boxes**
+only — there is **no separate point GT**, including for Cosmos.
+**Cosmos-native-point** predictions are scored against the GT **box** (point-in-GT-
+box accuracy; see [`metrics_spec.md`](metrics_spec.md)). There is **no point→bbox
+or bbox→point coercion** in either direction, and a point is never scored with IoU.
+
 ## 1. Image eligibility (what makes an image admissible)
 
 An image is eligible **only if all** of the following hold:

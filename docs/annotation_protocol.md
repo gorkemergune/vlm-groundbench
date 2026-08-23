@@ -48,6 +48,13 @@ One annotation = (image, referring expression, zero-or-more GT boxes,
 resolves to a **single** target unless explicitly `is_multi_target` (flagged).
 **Negative probes carry zero GT boxes** by construction.
 
+> **No separate point GT.** The canonical annotation is the object/referent
+> **bounding box** plus the existing metadata — for **all** models, including
+> Cosmos. Annotators do **not** annotate a point target. Cosmos-native-point
+> predictions are scored against the GT **box** (point-in-GT-box), so no additional
+> annotation task is introduced (see [`heldout_spec.md`](heldout_spec.md),
+> [`dataset_spec.md`](dataset_spec.md)).
+
 ## Guidelines (to be finalized before annotation starts)
 
 1. **Box tightness:** smallest axis-aligned box fully containing the referent.

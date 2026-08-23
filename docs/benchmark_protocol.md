@@ -13,17 +13,22 @@
 
 ## Study framing (governs the whole protocol)
 
-This is a **native-vs-prompted grounding study**. Models are classified by *how*
-they produce coordinates (see [`model_matrix.md`](model_matrix.md)):
+This is a **native-vs-prompted localization study**. Models are classified by *how*
+they produce coordinates **and by which spatial primitive is natively documented**
+(see [`model_matrix.md`](model_matrix.md)):
 
-- **Tier A — native/documented grounding:** Qwen2.5-VL-7B, Cosmos3-Nano-Reasoner.
-- **Tier C — prompt-induced coordinates:** Llama 3.2 11B/90B Vision, Nemotron 3
-  Nano Omni. (These retain Tier-B *localization ability*; only their bbox output
-  is prompt-induced.)
+- **A-bbox — native bounding box:** Qwen2.5-VL-7B (`bbox_2d`) → **BBox** metric
+  family.
+- **A-point — native point:** Cosmos3-Nano-Reasoner (`point_2d`, 0–1000) →
+  **Point** metric family. **Cosmos has no documented native bbox schema; it is
+  never called native bbox.**
+- **C — prompt-induced coordinates:** Llama 3.2 11B/90B Vision, Nemotron 3 Nano
+  Omni (retain Tier-B *localization ability*; coordinates only via prompting).
 
-**A vs C labeling rule:** every predicted box, and every reported number, carries
-its tier label. A **prompt-induced coordinate is never described as native
-grounding** (CLAUDE.md Rule #9).
+**Labeling rule:** every prediction carries its **primitive** (bbox|point) and
+**condition** label. A **prompt-induced coordinate is never described as native**,
+and **A-bbox and A-point are never scored with the same metric or merged into one
+ranking** (CLAUDE.md Rule #9; see [`metrics_spec.md`](metrics_spec.md)).
 
 **Primary vs secondary evidence:** the **contamination-free custom held-out set**
 ([`heldout_spec.md`](heldout_spec.md)) is the **PRIMARY** evidence for the main
@@ -37,11 +42,14 @@ The word **tier** is used in two unrelated senses in this benchmark. Always
 qualify it as **"capability tier"** or **"complexity tier"** whenever ambiguity is
 possible.
 
-- **Capability / grounding tier** (how a model produces coordinates):
-  - **A** = native/documented grounding (documented bbox/point output format).
-  - **B** = visual localization/reasoning **without** a documented bbox output.
-  - **C** = prompt-induced coordinate localization (boxes exist only because the
-    prompt asked; not a documented capability).
+- **Capability tier** (how a model produces coordinates, and which primitive):
+  - **A** = native/documented localization, subdivided by primitive:
+    - **A-bbox** = native bounding box (Qwen).
+    - **A-point** = native point (Cosmos; no documented native bbox).
+  - **B** = visual localization/reasoning **without** a documented coordinate
+    output.
+  - **C** = prompt-induced coordinate localization (coordinates exist only because
+    the prompt asked; not a documented capability).
 - **Prompt-complexity tier** (how hard the referring expression is):
   - **L1–L4** (bare category → attribute → spatial → relational/compositional;
     rubric in [`prompt_protocol.md`](prompt_protocol.md)).
@@ -103,31 +111,39 @@ held constant.
 
 ## Experiment catalog (see `experiment_plan.md` for full detail)
 
-| ID | Name | Regime | Models | Answers | Primary metric |
-|----|------|--------|--------|---------|----------------|
-| **E1a** | Tier-A native grounding | native | Tier A {Qwen, Cosmos} | RQ1, RQ2 (native arm), RQ5 | **Acc@IoU** |
-| **E1b** | All-model prompted localization | prompted | all five | RQ2 (A-vs-C), RQ4 (Llama pair), RQ5 | **Acc@IoU** |
-| **E2** | Prompt robustness / paraphrase sensitivity | both, per model | all five | RQ3 | IoU/F1 per tier; within-model Δ |
-| **E3** | Difficulty-stratified grounding | as E1a/E1b | Tier A (acc) + all five (behavior) | RQ1 depth | Acc@IoU per stratum |
-| **E4** | Hallucination / negative probes | prompted (+ native for A) | all five | RQ1/RQ2 secondary | `hall_absent`, `hall_wrongbox` |
+| ID | Name | Regime | Conditions | Answers | Primary metric (family) |
+|----|------|--------|-----------|---------|-------------------------|
+| **E1a** | Native-regime localization | native | Qwen-native-bbox; **Cosmos-native-point** | RQ1, RQ2 (native arm), RQ5 | **Acc@IoU** (bbox); **point-in-GT-box acc** (point) |
+| **E1b** | Prompted bbox localization, all five | prompted | all five incl. **Cosmos-prompted-bbox** | RQ2 (bbox contrast + within-Cosmos), RQ4 (Llama pair), RQ5 | **Acc@IoU** (bbox) |
+| **E2** | Prompt robustness / paraphrase sensitivity | both, per model | all five | RQ3 | IoU/F1 per complexity tier; within-model Δ |
+| **E3** | Difficulty-stratified localization | as E1a/E1b | native (acc) + all five (behavior) | RQ1 depth | Acc@IoU / point-in-GT-box acc per stratum |
+| **E4** | Hallucination / negative probes | prompted (+ native) | all five | RQ1/RQ2 secondary | `hall_absent`, `hall_wrongbox`/`hall_wrongpoint` |
+
+> **Cosmos conditions map onto existing IDs** — Cosmos-native-point ⊂ E1a,
+> Cosmos-prompted-bbox ⊂ E1b. **No new top-level experiment ID is created.**
 
 **RQ5 frontiers:** latency/cost is reported on **two separate Pareto frontiers** —
 **local** {Qwen, Llama 11B, Llama 90B} and **NIM-API** {Cosmos, Nemotron}. Cross-
 frontier latency is not a model property and is never merged.
 
-## Per-model coordinate conversion (eval layer)
+## Per-condition coordinate conversion (eval layer)
 
-Every raw output is converted to canonical `xywh` abs-px, origin top-left, using
-the per-model rules in [`model_matrix.md`](model_matrix.md):
+Each condition is converted to **its family's** canonical schema (BBox → `xywh`
+abs-px; Point → `(x,y)` abs-px), per the rules in
+[`model_matrix.md`](model_matrix.md). **A point is never converted to a box or
+scored with IoU.**
 
-- **Qwen2.5-VL:** `bbox_2d [x1,y1,x2,y2]` abs-px → `w=x2−x1, h=y2−y1`.
-- **Cosmos3-Nano-Reasoner:** box/point normalized 0–1000 → multiply by
-  `(W/1000, H/1000)` using **post-preprocessing** image `W,H`, then `xyxy→xywh`.
-- **Llama 11B/90B, Nemotron:** robust parse of prompt-induced output; parse
-  failures flagged; boxes labeled prompt-induced.
+- **Qwen-native-bbox:** `bbox_2d [x1,y1,x2,y2]` abs-px → `w=x2−x1, h=y2−y1` (BBox).
+- **Cosmos-native-point:** `point_2d [x,y]` normalized 0–1000 → multiply by
+  `(W/1000, H/1000)` using **post-preprocessing** image `W,H` → `(x,y)` abs-px
+  (**Point**).
+- **Cosmos-prompted-bbox:** box elicited by prompt (no native bbox schema) → robust
+  parse; **labeled prompt-induced** (BBox).
+- **Llama 11B/90B, Nemotron, Qwen-prompted:** robust parse of prompt-induced box;
+  parse failures flagged; labeled prompt-induced (BBox).
 
-Conversions are **unit-tested against known boxes** before any reported run
-(top source of silent IoU bugs).
+Conversions are **unit-tested against known boxes/points** before any reported run
+(top source of silent IoU/point-error bugs).
 
 ## Output parsing, parse-success & fairness
 
@@ -144,22 +160,28 @@ Conversions are **unit-tested against known boxes** before any reported run
 
 ## Metrics summary (full definitions in `metrics_spec.md`)
 
-- **Primary:** **Acc@IoU** at **τ = 0.5 and τ = 0.75** (single-target REC), plus
-  mean/median IoU.
-- **First-class:** parse-success rate.
+**Two spatial metric families — never merged, point never scored with IoU:**
+- **Family A — BBox:** **primary = Acc@IoU** at **τ = 0.5 and τ = 0.75**, plus
+  mean/median IoU. Applies to Qwen native bbox and all prompt-induced boxes
+  (incl. Cosmos-prompted-bbox).
+- **Family B — Point:** **primary = point-in-GT-box accuracy**, plus normalized
+  point error / center-distance. Applies to Cosmos-native-point only.
+
+- **First-class:** parse-success rate (per family, per condition).
 - **Secondary:** Precision/Recall/F1 (multi-target/detection), hallucination
-  (`hall_absent`, `hall_wrongbox`), latency, tokens/cost.
+  (`hall_absent`; `hall_wrongbox` for boxes / `hall_wrongpoint` for points),
+  latency, tokens/cost.
 - **mAP:** **secondary, detection-subset only** (VG/Flickr) and only where a model
   emits usable ranking scores; otherwise **N/A**. **Not a primary metric for any
   RQ.**
-- **Matching:** single-target headline = model's **first** box (secondary =
+- **Matching (bbox):** single-target headline = model's **first** box (secondary =
   best-IoU); **multi-target = Hungarian one-to-one** with `IoU ≥ τ`, unmatched
   pred→FP, unmatched GT→FN; **duplicate predictions** deduplicated at `IoU ≥ 0.95`
   before matching.
 - **Negative probes:** samples with `referent_present = false` (no GT box);
-  correct behavior is `NOT_PRESENT`; a returned box is an absent-object
-  hallucination. Negative probes come from the held-out set (public REC data has
-  no absent-referent cases).
+  correct behavior is `NOT_PRESENT`; a returned box **or point** is an
+  absent-object hallucination. Negative probes come from the held-out set (public
+  REC data has no absent-referent cases).
 
 ## Run manifest (captured for every run)
 
@@ -171,7 +193,9 @@ Every run writes a manifest under `results/raw_outputs/<run_id>/manifest.json`:
   "protocol_version": "0.1.0-draft",
   "experiment_id": "E1a",                      // E1a|E1b|E2|E3|E4
   "model_id": "...",
-  "model_tier": "A",                           // A (native) | C (prompt-induced)
+  "capability_class": "A-bbox",                // A-bbox | A-point | C
+  "condition": "Qwen-native-bbox",             // Qwen-native-bbox | Cosmos-native-point | Cosmos-prompted-bbox | <model>-prompted-bbox
+  "metric_family": "bbox",                     // bbox | point
   "prompt_regime": "native",                   // native | prompted
   "dataset_role": "heldout",                   // heldout (primary) | public_secondary
   "contamination_suspect": false,              // true for public_secondary

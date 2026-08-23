@@ -91,6 +91,11 @@ data/
   top-left) and every model adapter must map to it (Qwen `xyxy` abs-px; Cosmos
   normalized 0–1000 → convert). Ambiguity in coordinate conventions is a top
   source of silent IoU bugs; conversions are unit-tested (see `model_matrix.md`).
+- **Ground truth is always a bounding box** — including when evaluating
+  **Cosmos-native-point** predictions. A point prediction is scored only for
+  whether it falls **inside the corresponding GT box** (point-in-GT-box accuracy,
+  see [`metrics_spec.md`](metrics_spec.md)); the GT box is **not** converted into a
+  point, and a point is **not** converted into a box. There is no separate point GT.
 
 ## Splits policy
 
