@@ -1,0 +1,34 @@
+{
+  "bbox_metrics": {
+    "acc_at_0_5": {
+      "acc_charged": 1.0,
+      "acc_excluded": 1.0,
+      "n_charged": 1,
+      "n_excluded": 1,
+      "tau": 0.5
+    },
+    "acc_at_0_75": {
+      "acc_charged": 1.0,
+      "acc_excluded": 1.0,
+      "n_charged": 1,
+      "n_excluded": 1,
+      "tau": 0.75
+    },
+    "mean_iou": 1.0
+  },
+  "capability_class": "A-bbox",
+  "condition": "Qwen-native-bbox",
+  "hallucination": {
+    "hall_absent": null,
+    "hall_absent_n": 0,
+    "hall_wrongbox": 0.0,
+    "hall_wrongbox_n": 1,
+    "hall_wrongpoint": null,
+    "hall_wrongpoint_n": 0
+  },
+  "is_native": true,
+  "metric_family": "bbox",
+  "n_samples": 1,
+  "parse_success_rate": 1.0,
+  "regime": "native"
+}

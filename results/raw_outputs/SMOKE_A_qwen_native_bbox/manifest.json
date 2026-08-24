@@ -1,0 +1,23 @@
+{
+  "capability_class": "A-bbox",
+  "code_git_commit": "ae367559949851ae1a20811e3360ae39ac8da61d",
+  "condition": "Qwen-native-bbox",
+  "contamination_suspect": false,
+  "dataset_role": "heldout",
+  "decoding_params": {
+    "temperature": 0
+  },
+  "env_hash": "sha256:ee5e5c977caf0c1292eaa62d9912eb449b98ce6cac5b039733621ab7a1395d7d",
+  "experiment_id": "E1a",
+  "metric_family": "bbox",
+  "model_id": "qwen2.5-vl-7b",
+  "model_version_or_revision": null,
+  "prompt_regime": "native",
+  "prompt_registry_version": null,
+  "protocol_version": "0.1.0-draft",
+  "returned_model_version": null,
+  "run_id": "SMOKE_A_qwen_native_bbox",
+  "seed": 0,
+  "split_manifest_hash": "sha256:aa7f385b7e6a3ce406af84dde1e4d229a8c017177f417a8ebc03e7d1adaceb41",
+  "timestamp_utc": null
+}

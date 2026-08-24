@@ -1,0 +1,25 @@
+{
+  "capability_class": "A-point",
+  "condition": "Cosmos-native-point",
+  "hallucination": {
+    "hall_absent": null,
+    "hall_absent_n": 0,
+    "hall_wrongbox": null,
+    "hall_wrongbox_n": 0,
+    "hall_wrongpoint": 0.0,
+    "hall_wrongpoint_n": 1
+  },
+  "is_native": true,
+  "metric_family": "point",
+  "n_samples": 1,
+  "parse_success_rate": 1.0,
+  "point_metrics": {
+    "point_in_gt_box_acc": {
+      "acc_charged": 1.0,
+      "acc_excluded": 1.0,
+      "n_charged": 1,
+      "n_excluded": 1
+    }
+  },
+  "regime": "native"
+}

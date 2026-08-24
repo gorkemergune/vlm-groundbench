@@ -1,0 +1,4 @@
+# VLM-GroundBench — execution layer (Layer 0 / Phase A)
+# Offline deterministic core. NO data/model/API dependencies at this stage.
+# Pure-stdlib runtime; pytest is the only dev dependency.
+pytest==9.1.1
