@@ -127,14 +127,23 @@ output:
   shared samples; correct for multiple comparisons (e.g., Holm–Bonferroni).
 - **Prompt effect (RQ3):** within-model repeated-measures analysis across tiers.
 - **Effect sizes** reported alongside p-values (not p-values alone).
-- **Power analysis — per metric family, not pooled:** the RQ1/RQ2 accuracy claims
-  rest on the **native conditions on the held-out set**, computed **within each
-  metric family** — the bbox contrast (Qwen native bbox vs prompt-induced boxes)
-  and the point condition (Cosmos-native-point) — never as a single Qwen-vs-Cosmos
-  cross-family comparison. Working target N for the held-out set is **TBD from the
-  power analysis** (order-of-magnitude planning figure ~200–500 images, pending
-  that analysis — not a fixed decision). If power is insufficient, claims are
-  scoped down honestly rather than overstated.
+- **Power analysis — per metric family, within-family (LOCKED settings):**
+  - **Primary endpoints:** BBox family → **Acc@IoU**; Point family →
+    **point-in-GT-box accuracy**.
+  - **Power = 0.80**, **α = 0.05**, multiple-comparison correction =
+    **Holm–Bonferroni**.
+  - Computed **within each metric family** — the bbox contrast (Qwen native bbox
+    vs prompt-induced boxes) and the point condition (Cosmos-native-point) —
+    **never** a single Qwen-vs-Cosmos cross-family comparison.
+  - **H2.2** (Cosmos native-point vs Cosmos-prompted-bbox) is **descriptive /
+    non-powered** (the two sides are different metric families, not directly
+    equivalent).
+  - **E3 and E4 are secondary / non-gating** — they report CIs but do not gate the
+    primary claim or the freeze.
+  - **Minimum detectable effect Δ and final N are TBD**, computed **after** a pilot
+    variance/baseline is available. The ~200–500-image figure is only an
+    order-of-magnitude planning number, **not a fixed decision**. If power is
+    insufficient, claims are scoped down honestly rather than overstated.
 - **Contamination reporting:** every public-benchmark result is presented next to
   its held-out counterpart; the gap is reported, not hidden.
 

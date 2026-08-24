@@ -20,7 +20,14 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from .errors import TBDBlocker
 from .geometry import BBox, xyxy_to_xywh
+
+# LOCKED prompted-bbox output format (Karar B): JSON {"bbox": [x, y, w, h]},
+# absolute pixels, xywh, origin top-left. This IS the canonical schema, so the
+# converter is an identity map (no coercion, no xyxy<->xywh ambiguity).
+PROMPTED_OUTPUT_FORMAT = "xywh_abs_pixels"
+PROMPTED_JSON_KEY = "bbox"
 
 _NUM = re.compile(r"-?\d+(?:\.\d+)?")
 _NOT_PRESENT = re.compile(r"\bNOT_PRESENT\b", re.IGNORECASE)
@@ -105,17 +112,41 @@ def parse_prompted_bbox(raw) -> ParseResult:
                            note="model declined (NOT_PRESENT)")
 
     obj = _as_obj(raw)
-    if isinstance(obj, dict) and isinstance(obj.get("bbox_2d"), (list, tuple)) \
-            and len(obj["bbox_2d"]) == 4:
-        try:
-            nums = [float(v) for v in obj["bbox_2d"]]
-            return ParseResult(success=True, primitive="bbox", raw_numbers=nums,
-                               note="json bbox_2d")
-        except (TypeError, ValueError):
-            pass
+    if isinstance(obj, dict):
+        for key in (PROMPTED_JSON_KEY, "bbox_2d"):  # locked key first, legacy second
+            val = obj.get(key)
+            if isinstance(val, (list, tuple)) and len(val) == 4:
+                try:
+                    nums = [float(v) for v in val]
+                    return ParseResult(success=True, primitive="bbox",
+                                       raw_numbers=nums, note=f"json {key}")
+                except (TypeError, ValueError):
+                    pass
 
     nums = [float(m.group()) for m in _NUM.finditer(text)]
     if len(nums) >= 4:
         return ParseResult(success=True, primitive="bbox", raw_numbers=nums[:4],
                            note="regex 4-number extraction")
     return ParseResult(success=False, primitive="bbox", note="unparseable to a box")
+
+
+def convert_prompted_numbers(raw_numbers, output_format_spec: str) -> BBox | None:
+    """Convert parsed prompted-bbox numbers to canonical xywh abs-px (Karar B).
+
+    For the LOCKED spec `xywh_abs_pixels`, the numbers ARE [x, y, w, h] in absolute
+    pixels — an identity map to canonical BBox. Returns None for an invalid box
+    (`w <= 0` or `h <= 0`), which the evaluator records as a PARSE FAILURE (not a
+    localization failure). Raises TBDBlocker for any non-locked spec — we never
+    guess a numeric convention.
+    """
+    if output_format_spec != PROMPTED_OUTPUT_FORMAT:
+        raise TBDBlocker(
+            f"output_format_spec {output_format_spec!r} is not the locked "
+            f"{PROMPTED_OUTPUT_FORMAT!r}; no other convention is defined."
+        )
+    if not raw_numbers or len(raw_numbers) < 4:
+        return None
+    x, y, w, h = (float(v) for v in raw_numbers[:4])
+    if w <= 0 or h <= 0:
+        return None
+    return BBox(x, y, w, h)

@@ -1,0 +1,48 @@
+{
+  "prompt_registry_version": "0.1.0-draft",
+  "status": "NOT frozen — draft. Native prompt wording is TBD-authoring; the prompted-bbox output format is LOCKED (Karar B).",
+  "output_format_spec": {
+    "id": "xywh_abs_pixels",
+    "json_key": "bbox",
+    "order": "x,y,w,h",
+    "unit": "absolute_pixels",
+    "origin": "top-left",
+    "not_present_literal": "NOT_PRESENT",
+    "notes": "LOCKED (Karar B). This IS the canonical internal schema, so parsing->canonical is an identity map; no xyxy<->xywh ambiguity, no point<->bbox coercion."
+  },
+  "entries": [
+    {
+      "prompt_id": "grounding.prompted.bbox.v1",
+      "regime": "prompted",
+      "applies_to": [
+        "qwen2.5-vl-7b",
+        "cosmos3-nano-reasoner",
+        "llama-3.2-11b-vision",
+        "llama-3.2-90b-vision",
+        "nemotron-3-nano-omni"
+      ],
+      "tier": "template",
+      "output_format_spec": "xywh_abs_pixels",
+      "text_template": "Locate the object described below in the image and return its bounding box.\nDescription: {referring_expression}\nRespond with ONLY a JSON object: {\"bbox\": [x, y, w, h]} where (x, y) is the top-left corner and (w, h) are the width and height in absolute pixels.\nIf the object is not present in the image, respond with exactly: NOT_PRESENT",
+      "notes": "Single shared prompted-bbox template for all five models. Coordinates are PROMPT-INDUCED (Cosmos here is prompt-induced, never native bbox). Only {referring_expression} varies across L1-L4 tiers and paraphrases (E2/RQ3); the format instruction stays fixed."
+    },
+    {
+      "prompt_id": "grounding.native.qwen.bbox.v1",
+      "regime": "native",
+      "applies_to": ["qwen2.5-vl-7b"],
+      "tier": "template",
+      "output_format_spec": "native",
+      "text_template": "TBD — native Qwen bbox_2d instruction wording (author at freeze). Elicited output is LOCKED: bbox_2d = [x1, y1, x2, y2] absolute pixels (xyxy).",
+      "notes": "Native regime. Instruction wording is TBD-authoring; the elicited native primitive/output is fixed. Adapter converts bbox_2d (xyxy) -> canonical xywh."
+    },
+    {
+      "prompt_id": "grounding.native.cosmos.point.v1",
+      "regime": "native",
+      "applies_to": ["cosmos3-nano-reasoner"],
+      "tier": "template",
+      "output_format_spec": "native",
+      "text_template": "TBD — native Cosmos point_2d instruction wording (author at freeze). Elicited output is LOCKED: point_2d = [x, y] normalized 0-1000 (top-left origin). Cosmos is NOT asked for a box.",
+      "notes": "Native regime, POINT primitive. Cosmos is never asked for a native bbox. Adapter converts point_2d (0-1000) -> pixel point."
+    }
+  ]
+}

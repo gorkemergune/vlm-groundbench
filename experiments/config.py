@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from evaluation.families import CapabilityClass, MetricFamily, Regime, condition_info
+from evaluation.parsers import PROMPTED_OUTPUT_FORMAT
 
 VALID_EXPERIMENTS = ("E1a", "E1b", "E2", "E3", "E4")  # locked; no new top-level IDs
 
@@ -60,3 +61,10 @@ class RunConfig:
         if self.dataset_role == "heldout" and self.contamination_suspect:
             raise ValueError("held-out set is contamination-free; "
                              "contamination_suspect must be False for it.")
+        # Prompted-bbox conditions require the LOCKED output_format_spec (Karar B).
+        if self.prompt_regime is Regime.PROMPTED and self.metric_family is MetricFamily.BBOX:
+            if self.output_format_spec != PROMPTED_OUTPUT_FORMAT:
+                raise ValueError(
+                    f"prompted-bbox condition {self.condition!r} requires "
+                    f"output_format_spec == {PROMPTED_OUTPUT_FORMAT!r}, got "
+                    f"{self.output_format_spec!r}.")

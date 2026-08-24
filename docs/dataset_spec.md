@@ -108,6 +108,12 @@ data/
 
 - Record dataset name, version, URL, download date, and SHA-256 per file in a
   committed `data/MANIFEST.*`.
+- **Dedup / contamination results are recorded reproducibly** in the provenance /
+  split manifest: per image, the cryptographic (exact-duplicate) hash, the
+  perceptual-hash (near-duplicate) result, and the benchmark-corpus provenance
+  check outcome (three-layer procedure in [`heldout_spec.md`](heldout_spec.md) §1b).
+  The specific pHash method and thresholds are **TBD** (pilot-confirmed); only the
+  recording format is fixed here.
 - Any preprocessing (resize, format) is scripted and logged; raw is preserved.
 
 ## Held-out set (primary) — specification pointer

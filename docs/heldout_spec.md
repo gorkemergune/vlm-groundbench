@@ -27,9 +27,8 @@ or bbox→point coercion** in either direction, and a point is never scored with
 An image is eligible **only if all** of the following hold:
 
 1. **Not from a known grounding corpus.** Not present in COCO / RefCOCO(+/g) /
-   Visual Genome / Flickr30k / other common REC-VQA training sets. Checked by
-   source provenance and near-duplicate detection (perceptual hash) against those
-   sets. **[⚠ verify]** the exact dedup procedure at freeze.
+   Visual Genome / Flickr30k / other common REC-VQA training sets. Enforced by the
+   three-layer dedup/contamination procedure below.
 2. **Licensing permits our use + redistribution of a small sample.** Source
    license recorded per image; we assign the set's license. Prefer sources we can
    redistribute (own captures or permissively licensed). **Do not invent** a
@@ -39,6 +38,20 @@ An image is eligible **only if all** of the following hold:
 4. **Natural photographic content** with at least one unambiguously describable
    target (or, for negative probes, a plausibly-expected-but-absent object).
 5. **No PII / sensitive content**; standard ethics screening.
+
+### 1b. Dedup & contamination procedure (three layers)
+
+1. **Exact duplicate** → **cryptographic hash** of the image bytes (e.g. SHA-256).
+2. **Near duplicate** → **perceptual-hash-based** check against the held-out set
+   and the known corpora.
+3. **Benchmark contamination** → **provenance check** against known
+   benchmark/source corpora (COCO / RefCOCO(+/g) / Visual Genome / Flickr30k / …).
+
+**Still TBD (do not invent):** the specific perceptual-hash method, the pHash
+distance threshold, and the exact/near-duplicate operational thresholds — these are
+confirmed on a pilot before freeze. All dedup/contamination results are recorded in
+the **provenance / split manifest** in a **reproducible** way (checksums per
+`dataset_spec.md`).
 
 Provenance, capture/source date, and the dedup result are logged per image in the
 manifest (checksums per `dataset_spec.md`).
@@ -79,8 +92,11 @@ data has no absent-referent cases). A negative probe is a sample where:
 Design rules:
 - Negative probes are **matched** to positive samples where feasible (same scene
   type / expression style) so hallucination is not confounded by scene oddity.
-- A documented fraction of the set is negative (fraction **TBD**; balanced enough
-  to estimate `hall_absent` with a reported CI).
+- A documented fraction of the set is negative. **The fraction is still TBD** and
+  is **not** fixed here: it is set **after the power analysis** by jointly
+  weighing the `hall_absent` CI requirement (E4) and the positive N needed for the
+  primary endpoints (RQ1/RQ2). **20–33 % is only a non-binding planning range**,
+  not a decision (see `experiment_plan.md`).
 - Absurd/impossible referents are a separate, optional sanity subset — **not**
   the primary negative probes (too easy; not representative).
 
@@ -90,9 +106,9 @@ Each sample is labeled on three axes (also in the GT schema `difficulty` field):
 
 | Axis | Values | Definition |
 |------|--------|-----------|
-| `size_bin` | small / medium / large | GT box area relative to image area; **exact thresholds TBD** (reference: COCO small `<32²`, large `>96²` px — confirm at freeze) |
+| `size_bin` | small / medium / large | **GT box area / image area** (image-area-relative). The COCO absolute-pixel `<32²` / `>96²` definition is **NOT used**. The small/medium/large **percentage thresholds are still TBD** (locked from the pilot/dataset distribution before freeze). |
 | `occluded` | true / false | target substantially occluded by another object/edge (documented ≥ X% threshold, **TBD**) |
-| `clutter` | low / med / high | number of same-category distractors / overall scene density |
+| `clutter` | low / med / high | number of same-category distractors / overall scene density (**cutoffs TBD**) |
 
 - For **small** targets, report **center-distance** alongside IoU (IoU is unstable
   at small scale) — see E3 in [`experiment_plan.md`](experiment_plan.md).
@@ -117,7 +133,10 @@ Per [`annotation_protocol.md`](annotation_protocol.md):
 - **Occlusion convention:** annotate a documented, consistent extent (visible vs
   amodal — record the choice).
 - **≥2 annotators** on an overlap subset (≥20%); report box IAA (mean pairwise
-  IoU) and tier/difficulty κ. Acceptance thresholds **TBD at freeze**.
+  IoU) and tier/difficulty/negative-probe κ. **Acceptance thresholds are LOCKED**
+  in [`annotation_protocol.md`](annotation_protocol.md): box mean IoU ≥ 0.70;
+  tier κ ≥ 0.60; difficulty κ ≥ 0.60; negative-probe κ ≥ 0.60 (data-quality gates,
+  not model-performance thresholds).
 - Adjudication by a third reviewer; decisions logged.
 - Annotations are **immutable + versioned**; corrections create a new version with
   a changelog (Rule #1). **No model under evaluation** is used to pre-label GT

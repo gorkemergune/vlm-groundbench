@@ -89,11 +89,17 @@ resolves to a **single** target unless explicitly `is_multi_target` (flagged).
     on absence.
 - **Adjudication:** disagreements resolved by a third reviewer; decision logged in
   `data/annotations/CHANGELOG.md`.
-- **Acceptance criteria — TBD (finalized at freeze), do not invent:** working
-  placeholders (e.g., box mean IoU ≥ 0.7, κ ≥ 0.6) are **[Assumption]** only;
-  the actual thresholds are confirmed at freeze. Samples below threshold are fixed
-  or dropped, **never shipped noisy**. This applies to held-out samples; public
-  samples failing verification are flagged/excluded, not edited.
+- **Acceptance criteria (LOCKED) — annotation / held-out data-quality gates, NOT
+  model-performance thresholds:**
+  - box agreement: **mean pairwise IoU ≥ 0.70**
+  - capability/tier agreement: **κ ≥ 0.60**
+  - difficulty agreement: **κ ≥ 0.60**
+  - negative-probe agreement (`referent_present`): **κ ≥ 0.60**
+
+  These gate GROUND-TRUTH quality only; they say nothing about model accuracy.
+  Samples below threshold are fixed or dropped, **never shipped noisy**. This
+  applies to held-out samples; public samples failing verification are
+  flagged/excluded, not edited.
 
 ## Versioning & immutability
 

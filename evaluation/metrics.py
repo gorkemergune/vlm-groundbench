@@ -13,7 +13,12 @@ from __future__ import annotations
 
 from .errors import TBDBlocker
 from .families import MetricFamily
-from .geometry import iou, point_in_box
+from .geometry import (
+    center_distance_px as geo_center_distance_px,
+    image_diagonal as geo_image_diagonal,
+    iou,
+    point_in_box,
+)
 from .types import SampleResult
 
 
@@ -77,32 +82,68 @@ def point_in_gt_box_accuracy(samples: list[SampleResult]) -> dict:
     }
 
 
-def normalized_point_error(*_args, **_kwargs):
-    """Normalized point error — BLOCKED: scale s_i is TBD in docs/.
+def normalized_point_error(samples: list[SampleResult]) -> dict:
+    """SECONDARY point-family metric (docs/metrics_spec.md, Karar 2).
 
-    docs/metrics_spec.md leaves s_i (image-diagonal vs sqrt(area)) as TBD. We do
-    not pick one. Raw pixel center-distance is available via
-    geometry.center_distance_px (no decision required).
+        s_i   = image diagonal = sqrt(W^2 + H^2)   (LOCKED)
+        NPE_i = || point - center(GT box) ||_2 / s_i
+
+    GT reference point = GT bounding box center (existing definition). A point is
+    never scored with IoU and never converted to a bbox. Reports median NPE over
+    present point-family samples that have a parsed point and image dimensions.
+    Requires image_w/image_h on the sample; if missing, raises TBDBlocker rather
+    than guessing a scale.
     """
-    raise TBDBlocker(
-        "normalized_point_error requires the scale s_i, which is TBD in "
-        "docs/metrics_spec.md (image-diagonal vs sqrt(area)). Resolve in docs first."
-    )
+    vals: list[float] = []
+    for s in samples:
+        if s.metric_family is not MetricFamily.POINT or not s.referent_present:
+            continue
+        if not (s.parse_success and s.pred_point is not None and s.gt_boxes):
+            continue
+        if s.image_w is None or s.image_h is None:
+            raise TBDBlocker(
+                "normalized_point_error needs image_w/image_h to form the image "
+                "diagonal s_i; it is missing and must not be guessed."
+            )
+        s_i = geo_image_diagonal(s.image_w, s.image_h)
+        if s_i <= 0.0:
+            continue
+        vals.append(geo_center_distance_px(s.pred_point, s.gt_boxes[0]) / s_i)
+    vals.sort()
+    n = len(vals)
+    median = None
+    if n:
+        median = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2.0
+    return {"median_npe": median, "n": n, "scale": "image_diagonal"}
 
 
 # ----------------------------------------------------- Cross-family utilities ---
 def parse_success_rate(samples: list[SampleResult]) -> float | None:
-    """Parse-success over PRESENT samples (a box/point is expected there).
+    """Parse-success over PRESENT, NON-DECLINING samples (docs/metrics_spec.md, Karar 1).
 
-    Reported separately, never folded into accuracy (invariant G). NOTE: whether
-    negative probes belong in the denominator is a minor ambiguity in
-    docs/metrics_spec.md; we scope this to present samples and flag the ambiguity
-    to the human rather than deciding it silently.
+    Population = { referent_present == True AND model did NOT return NOT_PRESENT }.
+    Per-sample: valid -> num+1, den+1; parse-fail -> num+0, den+1; NOT_PRESENT
+    decline -> excluded from the denominator; negative probe -> not in population.
+    Reported separately, never folded into accuracy (invariant G). Preserves:
+    parse failure != localization failure != negative-probe decline.
     """
-    present = [s for s in samples if s.referent_present]
-    if not present:
+    population = [s for s in samples if s.referent_present and not s.not_present]
+    if not population:
         return None
-    return sum(1 for s in present if s.parse_success) / len(present)
+    return sum(1 for s in population if s.parse_success) / len(population)
+
+
+def correct_decline_rate(samples: list[SampleResult]) -> dict:
+    """Negative-probe correct-decline rate (reported separately from parse-success).
+
+    Over negative probes (referent_present == False), the fraction where the model
+    correctly returned NOT_PRESENT. Complements `hall_absent` (see hallucination()).
+    """
+    negatives = [s for s in samples if not s.referent_present]
+    n = len(negatives)
+    if not n:
+        return {"correct_decline": None, "n": 0}
+    return {"correct_decline": sum(1 for s in negatives if s.not_present) / n, "n": n}
 
 
 def hallucination(samples: list[SampleResult]) -> dict:

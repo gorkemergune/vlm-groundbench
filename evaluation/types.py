@@ -22,6 +22,11 @@ class SampleResult:
     extra_bboxes: list[BBox] = field(default_factory=list)  # additional predicted boxes
     parse_success: bool = False
     not_present: bool = False               # model declined (valid, != parse failure)
+    # Post-preprocessing image size, needed for the Point-family normalized point
+    # error (s_i = image diagonal). Appended at the END with defaults so existing
+    # positional SampleResult(...) constructions keep working.
+    image_w: float | None = None
+    image_h: float | None = None
 
     def has_prediction(self) -> bool:
         return self.pred_bbox is not None or self.pred_point is not None

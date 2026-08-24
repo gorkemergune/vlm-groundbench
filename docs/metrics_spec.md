@@ -75,14 +75,24 @@ multi-target grounding (Flickr30k Entities, VG) and hallucination accounting:
 - `Precision = TP / (TP + FP)`, `Recall = TP / (TP + FN)`, `F1 = 2PR/(P+R)`.
 
 ### Parse-success rate — FIRST-CLASS metric
+Computed over **present, non-declining** samples only — a box is expected there:
 ```
-parse_success_rate = (# samples whose raw output yields ≥1 valid box) / (total samples)
+population        = { samples with referent_present = true AND model did NOT return NOT_PRESENT }
+parse_success_rate = (# population samples whose raw output yields ≥1 valid box) / (# population samples)
 ```
+Per-sample accounting:
+- valid output → numerator +1, denominator +1
+- parse failure → numerator +0, denominator +1
+- valid `NOT_PRESENT` decline → **excluded from the denominator** (not a parse failure)
+- negative probe (`referent_present = false`) → **not in the parse-success population**
 - Reported **per model, per condition** (bbox family). It is never folded into IoU
   or Acc@IoU. For prompt-induced conditions this separates "cannot format a box"
   from "cannot localize" — essential to the RQ2 native-vs-prompted claim.
 - A "valid box" = parseable to canonical `xywh` with `w>0, h>0` inside image
   bounds (after clamping policy below).
+- **Invariant preserved:** parse failure ≠ localization failure ≠ negative-probe
+  decline. Negative-probe behavior is reported separately (`hall_absent`,
+  correct-decline rate).
 
 ### mAP (secondary, restricted — NOT a primary metric anywhere)
 - mAP is **not** used for the single-target REC accuracy claims (no comparable
@@ -109,20 +119,27 @@ PointAcc = (1/N) · Σ_i  1[ p_i ∈ gt_i ]
 samples handled with the same dual basis (charged vs excluded) as Acc@IoU.
 
 ### Normalized point error / center-distance (secondary)
-For samples where the point is expected near the referent center, report the
-Euclidean point-to-GT-center distance normalized by a documented scale:
+Point-in-GT-box accuracy stays PRIMARY; NPE is SECONDARY. For samples where the
+point is expected near the referent center, report the Euclidean point-to-GT-box-
+center distance normalized by the **image diagonal**:
 ```
+s_i   = sqrt(W^2 + H^2)                          # image diagonal (LOCKED)
 NPE_i = || p_i − center(gt_i) ||_2  /  s_i
 ```
-where `s_i` is a fixed normalization scale — **choice TBD at freeze** (candidates:
-image diagonal, or √(GT box area)); the chosen `s_i` is documented and applied
-uniformly. Report median NPE + distribution. Also report raw center-distance in
-pixels for the small-object stratum (see `heldout_spec.md`, E3), since point
-localization is size-robust in a way IoU is not.
+- **`s_i = image diagonal`** is the locked normalization scale (√(GT box area)
+  is NOT used).
+- **GT reference point = GT bounding box center** `center(gt_i)` — the existing
+  definition; no new reference point is introduced.
+- Report median NPE + distribution. Also report **raw pixel center-distance** for
+  the small-object stratum (see `heldout_spec.md`, E3), since point localization
+  is size-robust in a way IoU is not.
+- A point is **never** scored with IoU and **never** converted to a bbox.
 
 ### Parse-success rate (Point family)
+Same population rule as the BBox parse-success (present, non-declining samples):
 ```
-point_parse_success = (# samples whose raw output yields ≥1 valid point) / (total samples)
+population          = { referent_present = true AND model did NOT return NOT_PRESENT }
+point_parse_success = (# population samples whose raw output yields ≥1 valid point) / (# population samples)
 ```
 A "valid point" = parseable to `(x,y)` inside image bounds. Reported separately;
 never folded into PointAcc. **Point parse-success and BBox parse-success are

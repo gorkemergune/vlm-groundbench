@@ -94,6 +94,12 @@ def point_in_box(p: Point, gt: BBox) -> bool:
     return (x1 <= p.x <= x2) and (y1 <= p.y <= y2)
 
 
+def image_diagonal(image_w: float, image_h: float) -> float:
+    """Image diagonal s_i = sqrt(W^2 + H^2) — the LOCKED normalized-point-error
+    scale (docs/metrics_spec.md, Karar 2)."""
+    return (float(image_w) ** 2 + float(image_h) ** 2) ** 0.5
+
+
 def center_distance_px(p: Point, gt: BBox) -> float:
     """Raw pixel distance from a point to a GT box center.
 
