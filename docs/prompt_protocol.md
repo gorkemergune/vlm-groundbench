@@ -61,25 +61,32 @@ Tiers are the **independent variable** for RQ3 and a GT annotation field.
 > Tiers are **[Assumption]** — the exact rubric is finalized at freeze and applied
 > consistently by annotators (see [`annotation_protocol.md`](annotation_protocol.md)).
 
-## Prompt templates (illustrative — not yet frozen)
+## Prompt registry — source of truth
 
-**Prompted regime (all five models):**
-```
-  "Locate the object described below in the image and return its bounding box.
-   Description: {referring_expression}
-   Respond with the bounding box as {OUTPUT_FORMAT_SPEC}.
-   If the object is not present, respond exactly: NOT_PRESENT."
-```
+The committed registry **[`prompts/registry.json`](../prompts/registry.json)** is
+the **source of truth** for all prompt text and the prompted output contract.
+Anything below is a human-readable summary; on any discrepancy the registry wins.
+
+> **Status:** `prompt_registry_version: 0.1.0-draft` — **NOT frozen.** Native
+> prompt wording is still TBD-authoring; the prompted-bbox output contract is
+> locked. Do not present draft-registry runs as frozen benchmark results.
+
+**Prompted-bbox v1 output contract (LOCKED, Karar B)** — entry
+`grounding.prompted.bbox.v1`, one shared template for all five models:
+- The model must respond with a JSON object **`{"bbox": [x, y, w, h]}`**,
+- coordinates in **absolute pixels**, layout **`xywh`** (`x,y` = top-left corner,
+  `w,h` = width/height), origin top-left,
+- or, if the object is absent, exactly **`NOT_PRESENT`**.
+
+This layout **is** the canonical internal schema, so parsing → canonical is an
+identity map (no `xyxy`↔`xywh` ambiguity, no point↔bbox coercion). Parse failures
+are recorded separately, not silently scored (see [`metrics_spec.md`](metrics_spec.md)).
 
 **Native regime (native conditions only):** the vendor-documented instruction for
-each native condition — **Qwen** eliciting a **`bbox_2d`** box, **Cosmos-native-
-point** eliciting a **`point_2d`** point (normalized 0–1000). Cosmos is not asked
-for a native box. The exact per-condition wording is recorded in the registry and
-cross-referenced in [`model_matrix.md`](model_matrix.md).
-
-- In the **prompted** regime, `{OUTPUT_FORMAT_SPEC}` is a single shared spec for
-  all models; parse failures are recorded, not silently scored (see
-  [`metrics_spec.md`](metrics_spec.md)).
+each native condition — **Qwen** eliciting a **`bbox_2d`** box (xyxy abs-px),
+**Cosmos-native-point** eliciting a **`point_2d`** point (normalized 0–1000).
+Cosmos is **not** asked for a native box. Native wording is **TBD-authoring** in
+the registry; the elicited output primitive is fixed.
 - In the **native** regime, the model emits its native coordinate format and the
   **adapter** converts to canonical `xywh` abs-px — the prompt does not request a
   foreign format.
@@ -96,11 +103,14 @@ probe: each target expression has ≥2 frozen paraphrases of equal complexity. T
 set is frozen pre-run; the DV is within-model variance across paraphrases. This
 measures sensitivity to surface wording independent of complexity.
 
-## Registry schema (proposed)
+## Registry schema
+
+The committed registry is [`prompts/registry.json`](../prompts/registry.json)
+(loaded via `experiments/prompt_registry.py`). Per-entry schema:
 
 ```json
 {
-  "prompt_id": "grounding.prompted.v1",
+  "prompt_id": "grounding.prompted.bbox.v1",
   "prompt_registry_version": "1.0.0",
   "regime": "native|prompted",
   "applies_to": ["all"] ,
